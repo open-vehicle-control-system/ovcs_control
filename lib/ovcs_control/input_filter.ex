@@ -63,11 +63,12 @@ defmodule OvcsControl.InputFilter do
   def apply(%__MODULE__{} = filter, raw_value) do
     delta = raw_value |> D.sub(filter.value) |> D.abs()
 
-    target = if D.gt?(delta, filter.deadband) do
-      raw_value
-    else
-      filter.value
-    end
+    target =
+      if D.gt?(delta, filter.deadband) do
+        raw_value
+      else
+        filter.value
+      end
 
     new_value =
       target
