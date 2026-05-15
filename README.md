@@ -43,12 +43,13 @@ filter.value  # => filtered Decimal, feed this to the PID as setpoint
 
 ## Installation
 
-Add as a path dependency in your `mix.exs`:
+Add as a path dependency in your `mix.exs` (adjust the relative path to
+match your caller's depth — `vms/core/`, `bridges/<name>/`, etc.):
 
 ```elixir
 def deps do
   [
-    {:ovcs_control, path: "../ovcs_control"}
+    {:ovcs_control, path: "../../libraries/ovcs_control"}
   ]
 end
 ```
