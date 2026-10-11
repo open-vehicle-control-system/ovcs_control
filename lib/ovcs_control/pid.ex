@@ -28,7 +28,7 @@ defmodule OvcsControl.PID do
   ## Time tracking
 
   `iterate/3` uses `System.monotonic_time/1` to compute elapsed time between calls.
-  On the first call, `minimum_elapsed_time` is used to avoid division by zero.
+  On the first call, `minimum_elapsed_time_s` is used to avoid division by zero.
 
   ## Options
 
@@ -37,7 +37,7 @@ defmodule OvcsControl.PID do
   - `:kd` - derivative gain (required, Decimal)
   - `:minimum_output` - lower clamp for output (default: -1)
   - `:maximum_output` - upper clamp for output (default: 1)
-  - `:minimum_elapsed_time` - floor for dt in seconds (default: 0.0001)
+  - `:minimum_elapsed_time_s` - floor for dt, in seconds (default: 0.0001)
   - `:reset_derivative_when_setpoint_changes` - when true, resets the derivative
     term on setpoint changes to avoid a spike (default: false)
 
@@ -104,14 +104,14 @@ defmodule OvcsControl.PID do
   defstruct kp: @zero,
             ki: @zero,
             kd: @zero,
-            minimum_output: Decimal.new(-1),
-            maximum_output: Decimal.new(1),
-            minimum_elapsed_time: D.new("0.0001"),
+            minimum_output: D.new(-1),
+            maximum_output: D.new(1),
+            minimum_elapsed_time_s: D.new("0.0001"),
             reset_derivative_when_setpoint_changes: false,
             proportional_term: @zero,
             integral_term: @zero,
             derivative_term: @zero,
-            previous_time: nil,
+            previous_time_ms: nil,
             previous_error: nil,
             previous_measurement: nil,
             previous_setpoint: nil,
@@ -120,9 +120,8 @@ defmodule OvcsControl.PID do
   @doc """
   Creates a new PID controller state with the given gains and options.
   """
-  def new(config \\ []) do
-    default = %__MODULE__{}
-    default |> Map.merge(config |> Enum.into(%{}))
+  def new(opts \\ []) do
+    %__MODULE__{} |> Map.merge(opts |> Enum.into(%{}))
   end
 
   @doc """
@@ -135,11 +134,11 @@ defmodule OvcsControl.PID do
   between calls is measured automatically.
   """
   def iterate(pid, measurement, setpoint) do
-    time = System.monotonic_time(:millisecond)
-    previous_time = pid.previous_time || time
+    now_ms = System.monotonic_time(:millisecond)
+    previous_time_ms = pid.previous_time_ms || now_ms
 
-    elapsed_time_seconds =
-      time |> D.sub(previous_time) |> D.div(1000) |> D.max(pid.minimum_elapsed_time)
+    elapsed_time_s =
+      now_ms |> D.sub(previous_time_ms) |> D.div(1000) |> D.max(pid.minimum_elapsed_time_s)
 
     error = setpoint |> D.sub(measurement)
 
@@ -153,22 +152,22 @@ defmodule OvcsControl.PID do
     proportional_term = error |> D.mult(pid.kp)
 
     integral_term =
-      error |> D.mult(elapsed_time_seconds) |> D.mult(pid.ki) |> D.add(pid.integral_term)
+      error |> D.mult(elapsed_time_s) |> D.mult(pid.ki) |> D.add(pid.integral_term)
 
     derivative_term =
-      error |> D.sub(previous_error) |> D.div(elapsed_time_seconds) |> D.mult(pid.kd)
+      error |> D.sub(previous_error) |> D.div(elapsed_time_s) |> D.mult(pid.kd)
 
-    output_raw = proportional_term |> D.add(integral_term) |> D.add(derivative_term)
-    output = output_raw |> D.max(pid.minimum_output) |> D.min(pid.maximum_output)
+    unclamped_output = proportional_term |> D.add(integral_term) |> D.add(derivative_term)
+    output = unclamped_output |> D.max(pid.minimum_output) |> D.min(pid.maximum_output)
 
     Logger.debug(
-      "E: #{error |> Decimal.round(4)} - P: #{proportional_term |> Decimal.round(4)} - I: #{integral_term |> Decimal.round(4)} - D: #{derivative_term |> Decimal.round(4)} - O: #{output |> Decimal.round(4)}"
+      "E: #{error |> D.round(4)} - P: #{proportional_term |> D.round(4)} - I: #{integral_term |> D.round(4)} - D: #{derivative_term |> D.round(4)} - O: #{output |> D.round(4)}"
     )
 
     %{
       pid
       | previous_error: error,
-        previous_time: time,
+        previous_time_ms: now_ms,
         previous_setpoint: setpoint,
         previous_measurement: measurement,
         proportional_term: proportional_term,
