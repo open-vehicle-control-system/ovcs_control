@@ -19,7 +19,7 @@ defmodule OvcsControl.MixProject do
 
   defp deps do
     [
-      {:decimal, "~> 2.1"},
+      {:decimal, "~> 2.1 or ~> 3.1"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
