@@ -93,6 +93,22 @@ defmodule OvcsControl.PIDTest do
     assert pid.output |> D.equal?("0.000025")
   end
 
+  test "minimum_elapsed_time_s floors the first step" do
+    pid = PID.new(ki: D.new(1), minimum_elapsed_time_s: D.new("0.01")) |> PID.iterate(@zero, @one)
+    assert pid.output |> D.equal?("0.01")
+  end
+
+  test "the step is timed from previous_time_ms, on the monotonic clock" do
+    one_second_ago_ms = System.monotonic_time(:millisecond) - 1_000
+
+    pid =
+      PID.new(ki: D.new(1), maximum_output: D.new(10), previous_time_ms: one_second_ago_ms)
+      |> PID.iterate(@zero, @one)
+
+    assert pid.output |> D.round(1) |> D.equal?(@one)
+    assert pid.previous_time_ms > one_second_ago_ms
+  end
+
   test "output is capped by the maximum output value" do
     pid =
       PID.new(kp: D.new("2"), minimum_output: D.new(-5), maximum_output: D.new(-2))
